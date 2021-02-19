@@ -1,11 +1,138 @@
 # -*- coding: utf-8 -*-
-import elasticsearch.exceptions
+
+from calendar import mdays
+from datetime import date, timedelta
+import base64
+import json
 import re
 import webbrowser
+
+import elasticsearch.exceptions
+import requests
 
 from deepbnb.model import Listing
 from scrapy.exceptions import DropItem
 
+class FuturePricePipeline:
+    def get_price(self, listing_id, checkin_date, checkout_date):
+        headers = {
+            "Device-Memory": "8",
+            "X-Airbnb-GraphQL-Platform-Client": "minimalist-niobe",
+            "X-Airbnb-API-Key": "d306zoyjsyarp7ifhu67rjxn52tv0t20",
+            "X-CSRF-Without-Token": "1",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.150 Safari/537.36",
+            "Viewport-Width": "835",
+            "Content-Type": "application/json",
+            "DPR": "1",
+            "ect": "4g",
+            "X-Airbnb-GraphQL-Platform": "web",
+        }
+
+        listing_id_b64 = "StayListing:" + str(listing_id)
+        listing_id_b64 = listing_id_b64.encode("ascii")
+        listing_id_b64 = base64.b64encode(listing_id_b64).decode("ascii")
+
+        variables = {
+            "id": listing_id_b64,
+            "pdpSectionsRequest": {
+                "adults": "1",
+                "bypassTargetings": False,
+                "causeId": None,
+                "children": None,
+                "disasterId": None,
+                "discountedGuestFeeVersion": None,
+                "displayExtensions": None,
+                "federatedSearchId": None,
+                "forceBoostPriorityMessageType": None,
+                "infants": None,
+                "interactionType": None,
+                "layouts": ["SIDEBAR", "SINGLE_COLUMN"],
+                "pdpTypeOverride": None,
+                "preview": False,
+                "previousStateCheckIn": None,
+                "previousStateCheckOut": None,
+                "priceDropSource": None,
+                "privateBooking": False,
+                "promotionUuid": None,
+                "searchId": None,
+                "selectedCancellationPolicyId": None,
+                "staysBookingMigrationEnabled": False,
+                "translateUgc": None,
+                "useNewSectionWrapperApi": False,
+                "sectionIds": [
+                    "BOOK_IT_NAV",
+                ],
+                "checkIn": checkin_date,
+                "checkOut": checkout_date,
+                "p3ImpressionId": "p3_1613745323_4fiXdVG7Tt5iQrxC",
+            },
+        }
+
+        extensions = {
+            "persistedQuery": {
+                "version": 1,
+                "sha256Hash": "02da46a04fac5d5d02c67afc3ed37524bdde19bd9f0ef5996b6a9bb59bd2a3df",
+            }
+        }
+
+        params = {
+            "operationName": "StaysPdpSections",
+            "locale": "en",
+            "currency": "USD",
+            "variables": json.dumps(variables),
+            "extensions": json.dumps(extensions),
+            "_cb": "tjwpt918caf3m",
+        }
+
+
+        response = requests.get(
+            "https://www.airbnb.com/api/v3/StaysPdpSections", headers=headers, params=params
+        )
+
+        try:
+            json_dict = response.json()
+            price = json_dict['data']['presentation']['stayProductDetailPage']['sections']['sections'][0]['section']['barPrice']['explanationData']['priceGroups'][-1]['items'][0]['priceString']
+
+            return price
+        except:
+            return None
+
+    def process_item(self, item, spider):
+        listing_id = str(item.get('id'))
+
+        today = date.today()
+
+        checkin_date1 = today + timedelta(days=mdays[today.month])
+        checkout_date1 = checkin_date1 + timedelta(days=1)
+        checkin_date1 = checkin_date1.isoformat()
+        checkout_date1 = checkout_date1.isoformat()
+
+        price1 = self.get_price(listing_id, checkin_date1, checkout_date1)
+        
+        item['next_month_date1'] = checkin_date1
+        item['next_month_price1'] = price1
+
+        checkin_date2 = today + timedelta(days=mdays[today.month] + 10)
+        checkout_date2 = checkin_date2 + timedelta(days=1)
+        checkin_date2 = checkin_date2.isoformat()
+        checkout_date2 = checkout_date2.isoformat()
+
+        price2 = self.get_price(listing_id, checkin_date2, checkout_date2)
+        
+        item['next_month_date2'] = checkin_date2
+        item['next_month_price2'] = price2
+
+        checkin_date3 = today + timedelta(days=mdays[today.month] + 20)
+        checkout_date3 = checkin_date3 + timedelta(days=1)
+        checkin_date3 = checkin_date3.isoformat()
+        checkout_date3 = checkout_date3.isoformat()
+
+        price3 = self.get_price(listing_id, checkin_date3, checkout_date3)
+
+        item['next_month_date3'] = checkin_date3
+        item['next_month_price3'] = price3
+
+        return item
 
 class BnbPipeline:
     @classmethod

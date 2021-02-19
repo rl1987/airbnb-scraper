@@ -63,3 +63,11 @@ class DeepbnbItem(scrapy.Item):
     transit = scrapy.Field()
     url = scrapy.Field()
     weekly_price_factor = scrapy.Field()
+
+    next_month_date1 = scrapy.Field()
+    next_month_price1 = scrapy.Field()
+    next_month_date2 = scrapy.Field()
+    next_month_price2 = scrapy.Field()
+    next_month_date3 = scrapy.Field()
+    next_month_price3 = scrapy.Field()
+
